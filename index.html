@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pose Defense Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a202c; color: white; font-family: 'Inter', sans-serif; }
+        #game-container { position: relative; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #webcam-container { position: absolute; top: 10px; right: 10px; width: 200px; height: 200px; border: 2px solid #4a5568; border-radius: 8px; overflow: hidden; z-index: 10; transform: scaleX(-1); }
+        #webcam-container canvas { width: 100%; height: 100%; object-fit: cover; }
+        #game-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+        .score-board { margin-top: 20px; font-size: 2rem; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        .status-text { margin-top: 10px; font-size: 1.5rem; color: #cbd5e0; }
+        
+        #start-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; }
+        button { pointer-events: auto; background-color: #4299e1; color: white; padding: 12px 24px; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; border: none; transition: background 0.2s; }
+        button:hover { background-color: #3182ce; }
+        button:disabled { background-color: #a0aec0; cursor: not-allowed; }
+
+        .particle { position: absolute; border-radius: 50%; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="webcam-container"></div>
+        <canvas id="game-canvas"></canvas>
+        
+        <div id="ui-layer">
+            <div class="score-board">Score: <span id="score">0</span> | Lives: <span id="lives">3</span></div>
+            <div class="status-text" id="current-pose">Waiting for pose...</div>
+            <div class="status-text text-red-400 font-bold hidden" id="game-over-text">Game Over!</div>
+        </div>
+
+        <div id="start-screen">
+            <h1 class="text-4xl font-bold mb-4">Pose Defense</h1>
+            <p class="mb-6 text-center max-w-md">
+                Defend yourself using your trained poses!<br>
+                Left Fireball -> Left Hand Block (left)<br>
+                Right Fireball -> Right Hand Block (right)<br>
+                Ice Spike -> Both Hands Block (both)<br>
+                Stay 'idle' otherwise.
+            </p>
+            <button id="start-btn" onclick="initGame()">Start Game & Camera</button>
+            <div id="loading-text" class="mt-4 hidden text-blue-300">Loading AI Model...</div>
+        </div>
+    </div>
+
+    <script>
+        const URL = "https://teachablemachine.withgoogle.com/models/S4-W6AOEH/";
+        let model, webcam, ctx, labelContainer, maxPredictions;
+        let isPlaying = false;
+        let currentDetectedPose = "idle";
+        
+        // Game State
+        let score = 0;
+        let lives = 3;
+        let canvas, gameCtx;
+        let projectiles = [];
+        let particles = [];
+        let lastTime = 0;
+        let spawnTimer = 0;
+        let spawnInterval = 2000; // Time between attacks
+        const PLAYER_X = window.innerWidth / 2;
+        const PLAYER_Y = window.innerHeight - 150;
+        const PLAYER_RADIUS = 40;
+
+        // Ensure canvas fits screen
+        function resizeCanvas() {
+            if(canvas) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Load the Teachable Machine model
+        async function initModel() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            document.getElementById('loading-text').classList.remove('hidden');
+            document.getElementById('start-btn').disabled = true;
+            document.getElementById('start-btn').innerText = "Loading...";
+
+            try {
+                // load the model and metadata
+                model = await tmImage.load(modelURL, metadataURL);
+                maxPredictions = model.getTotalClasses();
+
+                // Convenience function to setup a webcam
+                const size = 200;
+                const flip = true; // whether to flip the webcam
+                webcam = new tmImage.Webcam(size, size, flip);
+                await webcam.setup(); // request access to the webcam
+                await webcam.play();
+                
+                window.requestAnimationFrame(loop);
+
+                // append/get elements to the DOM
+                const webcamContainer = document.getElementById("webcam-container");
+                webcamContainer.appendChild(webcam.canvas);
+                
+                return true;
+            } catch (e) {
+                console.error("Error loading model:", e);
+                alert("Failed to load camera or model. Please ensure camera permissions are granted.");
+                return false;
+            }
+        }
+
+        async function initGame() {
+            const success = await initModel();
+            if(!success) return;
+
+            document.getElementById('start-screen').classList.add('hidden');
+            
+            canvas = document.getElementById('game-canvas');
+            gameCtx = canvas.getContext('2d');
+            resizeCanvas();
+
+            score = 0;
+            lives = 3;
+            projectiles = [];
+            particles = [];
+            spawnInterval = 2500;
+            updateUI();
+            document.getElementById('game-over-text').classList.add('hidden');
+            
+            isPlaying = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        async function loop(timestamp) {
+            webcam.update(); // update the webcam frame
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predict() {
+            // predict can take in an image, video or canvas html element
+            const prediction = await model.predict(webcam.canvas);
+
+            let highestProb = 0;
+            let bestPose = "idle";
+
+            for (let i = 0; i < maxPredictions; i++) {
+                if (prediction[i].probability > highestProb) {
+                    highestProb = prediction[i].probability;
+                    bestPose = prediction[i].className;
+                }
+            }
+            
+            // Only update if confident
+            if (highestProb > 0.7) {
+                currentDetectedPose = bestPose.toLowerCase();
+            } else {
+                currentDetectedPose = "idle";
+            }
+            
+            document.getElementById('current-pose').innerText = "Current Pose: " + currentDetectedPose.toUpperCase();
+        }
+
+        class Projectile {
+            constructor(type) {
+                this.type = type; // 'left', 'right', 'both'
+                this.radius = type === 'both' ? 30 : 20;
+                this.speed = 3 + Math.random() * 2 + (score * 0.1); // gets faster
+                
+                if (type === 'left') {
+                    this.x = 0;
+                    this.y = PLAYER_Y;
+                    this.color = '#e53e3e'; // Red fireball
+                } else if (type === 'right') {
+                    this.x = canvas.width;
+                    this.y = PLAYER_Y;
+                    this.color = '#e53e3e';
+                } else { // both (ice spike from top)
+                    this.x = canvas.width / 2;
+                    this.y = 0;
+                    this.color = '#63b3ed'; // Blue ice
+                    this.speed += 1; // Ice falls faster
+                }
+                this.active = true;
+            }
+
+            update() {
+                if (this.type === 'left') {
+                    this.x += this.speed;
+                } else if (this.type === 'right') {
+                    this.x -= this.speed;
+                } else { // both
+                    this.y += this.speed;
+                }
+            }
+
+            draw(ctx) {
+                ctx.beginPath();
+                if(this.type === 'both') {
+                    // Draw ice spike
+                    ctx.moveTo(this.x, this.y + this.radius);
+                    ctx.lineTo(this.x - this.radius/2, this.y - this.radius);
+                    ctx.lineTo(this.x + this.radius/2, this.y - this.radius);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                } else {
+                    // Draw fireball
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                    // Simple glow
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = this.color;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+                ctx.closePath();
+            }
+        }
+
+        function createParticles(x, y, color) {
+            for(let i=0; i<15; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    life: 1.0,
+                    color: color
+                });
+            }
+        }
+
+        function spawnProjectile() {
+            const types = ['left', 'right', 'both'];
+            const randomType = types[Math.floor(Math.random() * types.length)];
+            projectiles.push(new Projectile(randomType));
+            
+            // Decrease spawn interval slightly over time to increase difficulty
+            spawnInterval = Math.max(800, spawnInterval - 50); 
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            // Clear canvas
+            gameCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Player area
+            gameCtx.beginPath();
+            gameCtx.arc(canvas.width / 2, PLAYER_Y, PLAYER_RADIUS, 0, Math.PI * 2);
+            gameCtx.fillStyle = currentDetectedPose === 'idle' ? '#48bb78' : '#ed8936'; // Green if idle, Orange if blocking
+            gameCtx.fill();
+            gameCtx.strokeStyle = 'white';
+            gameCtx.lineWidth = 2;
+            gameCtx.stroke();
+            gameCtx.closePath();
+
+            // Spawn logic
+            spawnTimer += deltaTime;
+            if (spawnTimer > spawnInterval) {
+                spawnProjectile();
+                spawnTimer = 0;
+            }
+
+            // Update & Draw Projectiles
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                let p = projectiles[i];
+                p.update();
+                p.draw(gameCtx);
+
+                // Collision Detection with Player Area
+                let dx = p.x - (canvas.width / 2);
+                let dy = p.y - PLAYER_Y;
+                let distance = Math.sqrt(dx*dx + dy*dy);
+
+                if (distance < p.radius + PLAYER_RADIUS) {
+                    // Check if correct block is active
+                    if (currentDetectedPose === p.type) {
+                        // Successful block
+                        score += 10;
+                        createParticles(p.x, p.y, p.color);
+                    } else {
+                        // Hit
+                        lives--;
+                        createParticles(p.x, p.y, 'white');
+                        // Red flash effect
+                        gameCtx.fillStyle = 'rgba(255,0,0,0.3)';
+                        gameCtx.fillRect(0,0, canvas.width, canvas.height);
+                    }
+                    projectiles.splice(i, 1);
+                    updateUI();
+
+                    if (lives <= 0) {
+                        gameOver();
+                    }
+                } else if (p.x < -50 || p.x > canvas.width + 50 || p.y > canvas.height + 50) {
+                     // Remove if off screen (shouldn't happen often as they aim for player)
+                     projectiles.splice(i, 1);
+                }
+            }
+
+            // Update & Draw Particles
+            for(let i = particles.length -1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.05;
+                if(p.life <= 0) {
+                    particles.splice(i, 1);
+                } else {
+                    gameCtx.beginPath();
+                    gameCtx.arc(p.x, p.y, 3, 0, Math.PI*2);
+                    gameCtx.fillStyle = p.color;
+                    gameCtx.globalAlpha = p.life;
+                    gameCtx.fill();
+                    gameCtx.globalAlpha = 1.0;
+                }
+            }
+
+            if(isPlaying) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('score').innerText = score;
+            document.getElementById('lives').innerText = lives;
+        }
+
+        function gameOver() {
+            isPlaying = false;
+            document.getElementById('game-over-text').classList.remove('hidden');
+            setTimeout(() => {
+                const startScreen = document.getElementById('start-screen');
+                startScreen.classList.remove('hidden');
+                document.getElementById('start-btn').innerText = "Restart Game";
+                document.getElementById('start-btn').disabled = false;
+                document.getElementById('loading-text').classList.add('hidden');
+            }, 2000);
+        }
+
+    </script>
+</body>
+</html>
