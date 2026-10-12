@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>AI 格擋防禦戰 - 體感偵測</title>
+  <title>AI 格擋防禦戰 - 手勢防禦</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
   <style>
@@ -75,7 +75,7 @@
         <span style="color:#64748b; font-size:12px;">載入後顯示各類別機率</span>
       </div>
 
-      <div class="panel-title">⚙️ 動作手動對應（若辨識無效可於此調整）</div>
+      <div class="panel-title">⚙️ 動作手動對應</div>
       <div class="mapping-row">
         <span>左火球防禦 (正手掌):</span>
         <select id="map-left" onchange="updateMappings()"><option value="">自動抓取</option></select>
@@ -104,7 +104,9 @@
     let projectiles = [];
     let lastSpawn = 0;
 
-    // 自訂對應表
+    // 玩家核心位置
+    const PLAYER = { x: 240, y: 400, radius: 36 };
+
     let actionMapping = { left: "", right: "", both: "", idle: "" };
     let classNames = [];
 
@@ -118,254 +120,4 @@
       statusText.innerText = "⏳ 正在載入模型權重...";
 
       try {
-        // 載入 Teachable Machine 模型
-        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
-        maxPredictions = model.getTotalClasses();
-        classNames = model.getClassLabels();
-
-        statusText.innerText = "📷 正在連線攝影機...";
-        webcam = new tmImage.Webcam(200, 200, true); // flip = true
-        await webcam.setup();
-        await webcam.play();
-
-        // 綁定攝影機到預覽畫面
-        const wcContainer = document.getElementById("webcam-container");
-        wcContainer.innerHTML = "";
-        wcContainer.appendChild(webcam.canvas);
-
-        // 建立信心度進度條
-        setupConfidenceBars();
-        // 建立下拉選單並自動對齊
-        setupMappingDropdowns();
-
-        // 隱藏覆蓋層，開始遊戲
-        document.getElementById("overlay").style.display = "none";
-        isRunning = true;
-        score = 0;
-        hp = 3;
-        projectiles = [];
-        lastSpawn = performance.now();
-
-        window.requestAnimationFrame(loop);
-      } catch (err) {
-        console.error(err);
-        statusText.innerText = "❌ 啟動失敗: " + err.message + "\n請確認已允許鏡頭權限。";
-        btn.disabled = false;
-      }
-    }
-
-    // 建立進度條
-    function setupConfidenceBars() {
-      const container = document.getElementById("bars-container");
-      container.innerHTML = "";
-      for (let i = 0; i < maxPredictions; i++) {
-        const name = classNames[i];
-        const row = document.createElement("div");
-        row.className = "class-bar";
-        row.innerHTML = `
-          <div class="class-label-row">
-            <span>${name}</span>
-            <span id="prob-val-${i}">0%</span>
-          </div>
-          <div class="bar-bg"><div class="bar-fill" id="prob-bar-${i}"></div></div>
-        `;
-        container.appendChild(row);
-      }
-    }
-
-    // 設定下拉選單並自動模糊匹配
-    function setupMappingDropdowns() {
-      const actions = ["left", "right", "both", "idle"];
-      actions.forEach(action => {
-        const select = document.getElementById("map-" + action);
-        select.innerHTML = "";
-        classNames.forEach((name, idx) => {
-          const opt = document.createElement("option");
-          opt.value = name;
-          opt.innerText = name;
-          select.appendChild(opt);
-        });
-
-        // 智慧初使化匹配
-        const matched = classNames.find(c => {
-          const lower = c.toLowerCase();
-          if (action === "left") return lower.includes("left") || lower.includes("左") || lower.includes("掌");
-          if (action === "right") return lower.includes("right") || lower.includes("右") || lower.includes("背");
-          if (action === "both") return lower.includes("both") || lower.includes("雙") || lower.includes("拳");
-          if (action === "idle") return lower.includes("idle") || lower.includes("待機") || lower.includes("無") || lower.includes("背景");
-          return false;
-        });
-
-        if (matched) {
-          select.value = matched;
-        } else if (classNames[actions.indexOf(action)]) {
-          // 找不到就依序指定
-          select.value = classNames[actions.indexOf(action)];
-        }
-      });
-      updateMappings();
-    }
-
-    function updateMappings() {
-      actionMapping.left = document.getElementById("map-left").value;
-      actionMapping.right = document.getElementById("map-right").value;
-      actionMapping.both = document.getElementById("map-both").value;
-      actionMapping.idle = document.getElementById("map-idle").value;
-    }
-
-    async function loop(timestamp) {
-      if (!isRunning) return;
-      webcam.update();
-      await predict();
-      updateGame(timestamp);
-      renderGame();
-      window.requestAnimationFrame(loop);
-    }
-
-    async function predict() {
-      const prediction = await model.predict(webcam.canvas);
-      let highestProb = 0;
-      let dominantClass = "";
-
-      for (let i = 0; i < maxPredictions; i++) {
-        const p = prediction[i].probability;
-        const percent = Math.round(p * 100);
-        document.getElementById(`prob-bar-${i}`).style.width = percent + "%";
-        document.getElementById(`prob-val-${i}`).innerText = percent + "%";
-
-        if (p > highestProb) {
-          highestProb = p;
-          dominantClass = prediction[i].className;
-        }
-      }
-
-      // 將偵測出的 Class 比對自訂 Action
-      if (highestProb >= 0.5) {
-        if (dominantClass === actionMapping.left) currentPose = "left";
-        else if (dominantClass === actionMapping.right) currentPose = "right";
-        else if (dominantClass === actionMapping.both) currentPose = "both";
-        else currentPose = "idle";
-      } else {
-        currentPose = "idle";
-      }
-
-      // 更新畫面標籤
-      const tag = document.getElementById("pose-tag");
-      const names = { left: "🖐️ 左正手掌", right: "🤚 右手背檔", both: "✊✊ 雙手雙拳", idle: "待機" };
-      tag.innerText = names[currentPose] || dominantClass;
-      tag.style.color = currentPose === "idle" ? "#94a3b8" : "#38bdf8";
-    }
-
-    // --- 遊戲邏輯與渲染 ---
-    function spawnProjectile() {
-      const types = ["fire_left", "fire_right", "ice_both"];
-      const type = types[Math.floor(Math.random() * types.length)];
-      
-      let p = { type: type, speed: 3.5, radius: 20 };
-      if (type === "fire_left") {
-        p.x = 20; p.y = 200; p.vx = 4; p.vy = 2; p.color = "#f97316"; p.req = "left";
-      } else if (type === "fire_right") {
-        p.x = 460; p.y = 200; p.vx = -4; p.vy = 2; p.color = "#f97316"; p.req = "right";
-      } else { // 冰錐從上方往下
-        p.x = 240; p.y = 20; p.vx = 0; p.vy = 3.5; p.radius = 30; p.color = "#38bdf8"; p.req = "both";
-      }
-      projectiles.push(p);
-    }
-
-    function updateGame(now) {
-      if (now - lastSpawn > 2200) {
-        spawnProjectile();
-        lastSpawn = now;
-      }
-
-      const playerX = 240, playerY = 400, playerRadius = 35;
-
-      for (let i = projectiles.length - 1; i >= 0; i--) {
-        let p = projectiles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-
-        // 計算距離
-        let dist = Math.hypot(p.x - playerX, p.y - playerY);
-        if (dist < playerRadius + p.radius) {
-          // 撞擊玩家
-          if (currentPose === p.req) {
-            // 成功格擋！
-            score += 100;
-          } else {
-            // 格擋失敗受傷
-            hp--;
-            if (hp <= 0) {
-              gameOver();
-              return;
-            }
-          }
-          projectiles.splice(i, 1);
-        } else if (p.y > 480 || p.x < 0 || p.x > 480) {
-          projectiles.splice(i, 1);
-        }
-      }
-    }
-
-    function renderGame() {
-      ctx.fillStyle = "#090d16";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // 玩家角色 (盾牌位置)
-      ctx.beginPath();
-      ctx.arc(240, 400, 35, 0, Math.PI * 2);
-      ctx.fillStyle = "#334155";
-      ctx.fill();
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = "#64748b";
-      ctx.stroke();
-
-      // 防禦力場特效
-      if (currentPose !== "idle") {
-        ctx.beginPath();
-        if (currentPose === "left") {
-          ctx.arc(240, 400, 48, Math.PI * 0.7, Math.PI * 1.3);
-          ctx.strokeStyle = "#eab308";
-        } else if (currentPose === "right") {
-          ctx.arc(240, 400, 48, -Math.PI * 0.3, Math.PI * 0.3);
-          ctx.strokeStyle = "#eab308";
-        } else if (currentPose === "both") {
-          ctx.arc(240, 400, 52, Math.PI * 1.0, Math.PI * 2.0);
-          ctx.strokeStyle = "#38bdf8";
-        }
-        ctx.lineWidth = 8;
-        ctx.stroke();
-      }
-
-      // 繪製敵方投射物
-      projectiles.forEach(p => {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = 15;
-        ctx.fill();
-        ctx.restore();
-      });
-
-      // UI 介面
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText(`分數: ${score}`, 20, 30);
-      ctx.fillText(`生命: ${"❤️".repeat(Math.max(0, hp))}`, 380, 30);
-    }
-
-    function gameOver() {
-      isRunning = false;
-      const overlay = document.getElementById("overlay");
-      document.getElementById("overlay-title").innerText = "💥 遊戲結束！";
-      document.getElementById("overlay-desc").innerText = `最終得分: ${score}`;
-      const btn = document.getElementById("startBtn");
-      btn.innerText = "重新開始";
-      btn.disabled = false;
-      overlay.style.display = "flex";
-    }
-  </script>
-</body>
-</html>
+        model = await tmImage.load  
