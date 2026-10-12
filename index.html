@@ -7,40 +7,40 @@
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { background: #12141d; color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
-    h1 { margin-bottom: 12px; font-size: 24px; color: #60a5fa; }
-    #main-container { display: flex; gap: 20px; max-width: 1000px; width: 100%; flex-wrap: wrap; justify-content: center; }
+    body { background: #0b0f19; color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
+    h1 { margin-bottom: 16px; font-size: 24px; color: #60a5fa; }
+    #main-container { display: flex; gap: 24px; max-width: 1020px; width: 100%; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
     
-    /* 遊戲與畫布區 */
-    #game-box { position: relative; width: 480px; height: 480px; background: #000; border-radius: 12px; overflow: hidden; border: 2px solid #334155; }
-    canvas#gameCanvas { width: 100%; height: 100%; display: block; }
+    /* 遊戲畫布區 */
+    #game-box { position: relative; width: 480px; height: 480px; background: #050811; border-radius: 14px; overflow: hidden; border: 2px solid #1e293b; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    canvas#gameCanvas { width: 480px; height: 480px; display: block; }
     
     /* 資訊與設定面板 */
-    #dashboard { flex: 1; min-width: 320px; max-width: 460px; background: #1e293b; border-radius: 12px; padding: 16px; border: 1px solid #334155; }
-    .panel-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #94a3b8; border-bottom: 1px solid #334155; padding-bottom: 6px; }
+    #dashboard { flex: 1; min-width: 320px; max-width: 440px; background: #111827; border-radius: 14px; padding: 18px; border: 1px solid #1f2937; }
+    .panel-title { font-size: 15px; font-weight: bold; margin-bottom: 10px; color: #94a3b8; border-bottom: 1px solid #1f2937; padding-bottom: 6px; }
     
-    /* 即時鏡頭小預覽 */
-    #webcam-container { width: 100%; height: 150px; background: #0f172a; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; margin-bottom: 15px; border: 1px solid #475569; }
+    #webcam-container { width: 100%; height: 160px; background: #030712; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; margin-bottom: 16px; border: 1px solid #374151; }
     #webcam-container canvas { max-height: 100%; max-width: 100%; object-fit: contain; }
 
-    /* 類別信心條 */
-    .class-bar { margin-bottom: 8px; }
-    .class-label-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
-    .bar-bg { width: 100%; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; }
-    .bar-fill { height: 100%; width: 0%; background: #38bdf8; transition: width 0.1s linear; }
+    /* 信心條 */
+    .class-bar { margin-bottom: 10px; }
+    .class-label-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+    .bar-bg { width: 100%; height: 8px; background: #1f2937; border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; width: 0%; background: #38bdf8; transition: width 0.08s ease; }
 
-    /* 控制與自訂選單 */
-    .mapping-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
-    select { background: #0f172a; color: #fff; border: 1px solid #475569; padding: 4px 8px; border-radius: 6px; }
+    /* 動作選單 */
+    .mapping-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 14px; }
+    select { background: #1f2937; color: #fff; border: 1px solid #4b5563; padding: 6px 10px; border-radius: 6px; outline: none; }
     
     button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
     #startBtn { background: #2563eb; color: #fff; margin-bottom: 10px; }
     #startBtn:hover { background: #1d4ed8; }
-    #startBtn:disabled { background: #475569; cursor: not-allowed; }
+    #startBtn:disabled { background: #4b5563; cursor: not-allowed; }
 
-    /* 遊戲狀態顯示 overlay */
-    #overlay { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; padding: 20px; text-align: center; }
-    #current-action-tag { position: absolute; top: 12px; left: 12px; background: rgba(0,0,0,0.65); padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; border: 1px solid #38bdf8; }
+    /* Overlay 浮層 */
+    #overlay { position: absolute; inset: 0; background: rgba(5, 8, 17, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; padding: 24px; text-align: center; }
+    #current-action-tag { position: absolute; top: 12px; left: 12px; background: rgba(17, 24, 39, 0.85); padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 14px; border: 1px solid #38bdf8; z-index: 5; }
+    #lives-tag { position: absolute; top: 12px; right: 12px; background: rgba(17, 24, 39, 0.85); padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 14px; border: 1px solid #ef4444; z-index: 5; }
   </style>
 </head>
 <body>
@@ -48,22 +48,22 @@
   <h1>🛡️ AI 格擋攻防戰 (手勢防禦)</h1>
 
   <div id="main-container">
-    <!-- 遊戲視窗 -->
     <div id="game-box">
-      <div id="current-action-tag">當前手勢: <span id="pose-tag" style="color: #cbd5e1;">待機中</span></div>
+      <div id="current-action-tag">當前手勢: <span id="pose-tag" style="color: #94a3b8;">待機中</span></div>
+      <div id="lives-tag">生命: <span id="lives-display">❤️❤️❤️</span></div>
+      
       <canvas id="gameCanvas" width="480" height="480"></canvas>
       
       <div id="overlay">
         <h2 id="overlay-title" style="font-size: 26px; margin-bottom: 8px;">準備格擋！</h2>
-        <p id="overlay-desc" style="color: #94a3b8; font-size: 14px; margin-bottom: 16px;">
-          ← 左火球：正手掌檔 | 右火球：手背檔 →<br>❄️ 冰錐：雙手握拳對鏡頭！
+        <p id="overlay-desc" style="color: #94a3b8; font-size: 14px; margin-bottom: 18px; line-height: 1.6;">
+          ← 左火球：正手掌檔 | 右火球：手背檔 →<br>❄️ 巨大冰錐：雙手握拳對鏡頭！
         </p>
         <button id="startBtn" onclick="initAndStart()">載入模型並開始遊戲</button>
-        <div id="loading-status" style="font-size: 12px; color: #f59e0b;"></div>
+        <div id="loading-status" style="font-size: 13px; color: #f59e0b; margin-top: 8px;"></div>
       </div>
     </div>
 
-    <!-- 即時儀表板與手勢設定 -->
     <div id="dashboard">
       <div class="panel-title">📸 即時鏡頭影像</div>
       <div id="webcam-container">
@@ -102,10 +102,11 @@
     let score = 0, hp = 3;
     let currentPose = "idle";
     let projectiles = [];
+    let hitEffects = [];
     let lastSpawn = 0;
 
-    // 玩家核心位置
-    const PLAYER = { x: 240, y: 400, radius: 36 };
+    // 玩家本體固定在畫面底端中央
+    const PLAYER = { x: 240, y: 405, radius: 36 };
 
     let actionMapping = { left: "", right: "", both: "", idle: "" };
     let classNames = [];
@@ -117,7 +118,322 @@
     async function initAndStart() {
       const btn = document.getElementById("startBtn");
       btn.disabled = true;
-      statusText.innerText = "⏳ 正在載入模型權重...";
+      statusText.innerText = "⏳ 載入模型權重中...";
 
       try {
-        model = await tmImage.load  
+        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+        maxPredictions = model.getTotalClasses();
+        classNames = model.getClassLabels();
+
+        statusText.innerText = "📷 連線攝影機中...";
+        webcam = new tmImage.Webcam(200, 200, true);
+        await webcam.setup();
+        await webcam.play();
+
+        const wcContainer = document.getElementById("webcam-container");
+        wcContainer.innerHTML = "";
+        wcContainer.appendChild(webcam.canvas);
+
+        setupConfidenceBars();
+        setupMappingDropdowns();
+
+        document.getElementById("overlay").style.display = "none";
+        isRunning = true;
+        score = 0;
+        hp = 3;
+        projectiles = [];
+        hitEffects = [];
+        lastSpawn = performance.now();
+        updateUI();
+
+        window.requestAnimationFrame(loop);
+      } catch (err) {
+        console.error(err);
+        statusText.innerText = "❌ 載入失敗: " + err.message;
+        btn.disabled = false;
+      }
+    }
+
+    function setupConfidenceBars() {
+      const container = document.getElementById("bars-container");
+      container.innerHTML = "";
+      for (let i = 0; i < maxPredictions; i++) {
+        const name = classNames[i];
+        const row = document.createElement("div");
+        row.className = "class-bar";
+        row.innerHTML = `
+          <div class="class-label-row">
+            <span>${name}</span>
+            <span id="prob-val-${i}">0%</span>
+          </div>
+          <div class="bar-bg"><div class="bar-fill" id="prob-bar-${i}"></div></div>
+        `;
+        container.appendChild(row);
+      }
+    }
+
+    function setupMappingDropdowns() {
+      const actions = ["left", "right", "both", "idle"];
+      actions.forEach(action => {
+        const select = document.getElementById("map-" + action);
+        select.innerHTML = "";
+        classNames.forEach((name) => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.innerText = name;
+          select.appendChild(opt);
+        });
+
+        const matched = classNames.find(c => {
+          const lower = c.toLowerCase();
+          if (action === "left") return lower.includes("left") || lower.includes("左") || lower.includes("掌");
+          if (action === "right") return lower.includes("right") || lower.includes("右") || lower.includes("背");
+          if (action === "both") return lower.includes("both") || lower.includes("雙") || lower.includes("拳");
+          if (action === "idle") return lower.includes("idle") || lower.includes("待機") || lower.includes("無");
+          return false;
+        });
+
+        if (matched) {
+          select.value = matched;
+        } else if (classNames[actions.indexOf(action)]) {
+          select.value = classNames[actions.indexOf(action)];
+        }
+      });
+      updateMappings();
+    }
+
+    function updateMappings() {
+      actionMapping.left = document.getElementById("map-left").value;
+      actionMapping.right = document.getElementById("map-right").value;
+      actionMapping.both = document.getElementById("map-both").value;
+      actionMapping.idle = document.getElementById("map-idle").value;
+    }
+
+    async function loop(timestamp) {
+      if (!isRunning) return;
+      webcam.update();
+      await predict();
+      updateGame(timestamp);
+      renderGame();
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      const prediction = await model.predict(webcam.canvas);
+      let highestProb = 0;
+      let dominantClass = "";
+
+      for (let i = 0; i < maxPredictions; i++) {
+        const p = prediction[i].probability;
+        const percent = Math.round(p * 100);
+        document.getElementById(`prob-bar-${i}`).style.width = percent + "%";
+        document.getElementById(`prob-val-${i}`).innerText = percent + "%";
+
+        if (p > highestProb) {
+          highestProb = p;
+          dominantClass = prediction[i].className;
+        }
+      }
+
+      if (highestProb >= 0.5) {
+        if (dominantClass === actionMapping.left) currentPose = "left";
+        else if (dominantClass === actionMapping.right) currentPose = "right";
+        else if (dominantClass === actionMapping.both) currentPose = "both";
+        else currentPose = "idle";
+      } else {
+        currentPose = "idle";
+      }
+
+      const tag = document.getElementById("pose-tag");
+      const names = { left: "🖐️ 左正手掌", right: "🤚 右手背檔", both: "✊✊ 雙手雙拳", idle: "待機" };
+      tag.innerText = names[currentPose] || dominantClass;
+      tag.style.color = currentPose === "idle" ? "#94a3b8" : "#38bdf8";
+    }
+
+    // 發射投射物（保證精確瞄準玩家中心點）
+    function spawnProjectile() {
+      const types = ["fire_left", "fire_right", "ice_both"];
+      const type = types[Math.floor(Math.random() * types.length)];
+      
+      let startX, startY, speed, radius, color, req;
+
+      if (type === "fire_left") {
+        startX = 0;
+        startY = 180;
+        speed = 3.8;
+        radius = 20;
+        color = "#ff6a00";
+        req = "left";
+      } else if (type === "fire_right") {
+        startX = 480;
+        startY = 180;
+        speed = 3.8;
+        radius = 20;
+        color = "#ff6a00";
+        req = "right";
+      } else {
+        startX = PLAYER.x;
+        startY = 0;
+        speed = 3.2;
+        radius = 28;
+        color = "#38bdf8";
+        req = "both";
+      }
+
+      // 精準計算直線瞄準向量
+      const dx = PLAYER.x - startX;
+      const dy = PLAYER.y - startY;
+      const distance = Math.hypot(dx, dy);
+
+      projectiles.push({
+        type: type,
+        x: startX,
+        y: startY,
+        vx: (dx / distance) * speed,
+        vy: (dy / distance) * speed,
+        radius: radius,
+        color: color,
+        req: req
+      });
+    }
+
+    function updateGame(now) {
+      // 每 2.2 秒產生一個攻擊
+      if (now - lastSpawn > 2200) {
+        spawnProjectile();
+        lastSpawn = now;
+      }
+
+      // 更新特效
+      for (let i = hitEffects.length - 1; i >= 0; i--) {
+        hitEffects[i].alpha -= 0.05;
+        hitEffects[i].radius += 2;
+        if (hitEffects[i].alpha <= 0) hitEffects.splice(i, 1);
+      }
+
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        let p = projectiles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // 計算距離
+        let dist = Math.hypot(p.x - PLAYER.x, p.y - PLAYER.y);
+        
+        // 當球碰到玩家周圍的盾牌防線 (約 55px)
+        if (dist <= PLAYER.radius + p.radius + 6) {
+          if (currentPose === p.req) {
+            // 格擋成功！
+            score += 100;
+            hitEffects.push({ x: p.x, y: p.y, color: "#38bdf8", radius: 20, alpha: 1 });
+          } else {
+            // 被擊中受傷
+            hp--;
+            hitEffects.push({ x: PLAYER.x, y: PLAYER.y, color: "#ef4444", radius: 30, alpha: 1 });
+            updateUI();
+            if (hp <= 0) {
+              gameOver();
+              return;
+            }
+          }
+          projectiles.splice(i, 1);
+        } else if (p.y > 490 || p.x < -40 || p.x > 520) {
+          projectiles.splice(i, 1);
+        }
+      }
+    }
+
+    function updateUI() {
+      document.getElementById("lives-display").innerText = "❤️".repeat(Math.max(0, hp));
+    }
+
+    function renderGame() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#050811";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 背景微弱科技感網格
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < 480; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 480); ctx.stroke();
+      }
+      for (let y = 0; y < 480; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(480, y); ctx.stroke();
+      }
+
+      // 玩家角色本體 (底端中央)
+      ctx.beginPath();
+      ctx.arc(PLAYER.x, PLAYER.y, PLAYER.radius, 0, Math.PI * 2);
+      ctx.fillStyle = "#1e293b";
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#475569";
+      ctx.stroke();
+
+      // 盾牌力場
+      if (currentPose !== "idle") {
+        ctx.beginPath();
+        if (currentPose === "left") {
+          // 左側弧形盾
+          ctx.arc(PLAYER.x, PLAYER.y, PLAYER.radius + 14, Math.PI * 0.72, Math.PI * 1.35);
+          ctx.strokeStyle = "#f59e0b";
+        } else if (currentPose === "right") {
+          // 右側弧形盾
+          ctx.arc(PLAYER.x, PLAYER.y, PLAYER.radius + 14, -Math.PI * 0.35, Math.PI * 0.28);
+          ctx.strokeStyle = "#f59e0b";
+        } else if (currentPose === "both") {
+          // 正上方大型天頂盾
+          ctx.arc(PLAYER.x, PLAYER.y, PLAYER.radius + 16, Math.PI * 0.95, Math.PI * 2.05);
+          ctx.strokeStyle = "#38bdf8";
+        }
+        ctx.lineWidth = 10;
+        ctx.lineCap = "round";
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.shadowBlur = 15;
+        ctx.stroke();
+        ctx.shadowBlur = 0; // 重設發光
+      }
+
+      // 繪製飛行物
+      projectiles.forEach(p => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 18;
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // 爆破 / 命中特效
+      hitEffects.forEach(eff => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(eff.x, eff.y, eff.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = eff.color;
+        ctx.globalAlpha = eff.alpha;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      // 分數顯示
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 18px sans-serif";
+      ctx.fillText(`得分: ${score}`, 20, 75);
+    }
+
+    function gameOver() {
+      isRunning = false;
+      const overlay = document.getElementById("overlay");
+      document.getElementById("overlay-title").innerText = "💥 防禦瓦解！遊戲結束";
+      document.getElementById("overlay-desc").innerText = `最終防禦得分: ${score}`;
+      const btn = document.getElementById("startBtn");
+      btn.innerText = "重新挑戰";
+      btn.disabled = false;
+      overlay.style.display = "flex";
+    }
+  </script>
+</body>
+</html>
